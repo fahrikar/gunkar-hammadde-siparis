@@ -23,6 +23,13 @@
   header.top .logo{font-weight:800;letter-spacing:.5px;font-size:19px}
   header.top .logo b{color:var(--yellow)}
   header.top .sub{font-size:12px;color:#b9c6e2;margin-top:1px}
+  header.top .ver{opacity:.7}
+  /* Yeni sürüm bildirimi */
+  .upd{position:fixed;left:0;right:0;top:0;z-index:60;display:none;align-items:center;
+    justify-content:center;gap:10px;padding:8px 12px;background:var(--yellow);
+    color:var(--navy-d);font-size:13px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+  .upd.show{display:flex}
+  .upd .btn{background:var(--navy);color:#fff}
   header.top .spacer{flex:1}
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
     box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
@@ -103,11 +110,15 @@
 </style>
 </head>
 <body>
+<div class="upd" id="updBar">
+  <span>Yeni sürüm hazır.</span>
+  <button class="btn btn-sm" onclick="applyUpdate()">Yenile</button>
+</div>
 <div class="app">
   <header class="top">
     <div>
       <div class="logo">GÜN<b>KAR</b> · Sipariş</div>
-      <div class="sub">Tedarikçi sipariş formu → Excel</div>
+      <div class="sub">Tedarikçi sipariş formu → Excel <span class="ver" id="appVer"></span></div>
     </div>
     <div class="spacer"></div>
     <button class="btn btn-accent btn-sm" onclick="openSupplierModal()">Tedarikçiler</button>
@@ -652,6 +663,48 @@ async function exportExcel(){
 }
 
 /* ---------- başlat ---------- */
+/* ---------- otomatik güncelleme ----------
+   sw.js "ağ önce" çalıştığı için uygulama silinip yeniden kurulmadan
+   güncellenir: internet varken her açılışta sunucudaki sürüm alınır,
+   internet yokken önbellekteki sürümle çalışmaya devam eder.
+   Sürüm çıkarken bu sabit ve sw.js'teki VERSION birlikte güncellenmeli. */
+const APP_VERSION="2026-08-07.1";
+let waitingWorker=null;
+
+function showUpdateBar(w){waitingWorker=w;$("#updBar").classList.add("show");}
+function applyUpdate(){
+  $("#updBar").classList.remove("show");
+  if(waitingWorker)waitingWorker.postMessage({type:"skipWaiting"});
+  else location.reload();
+}
+function initUpdates(){
+  $("#appVer").textContent="· s"+APP_VERSION;
+  /* file:// ile açıldığında service worker yok; sayfa yine çalışır. */
+  if(!("serviceWorker"in navigator)||location.protocol==="file:")return;
+  navigator.serviceWorker.register("sw.js").then(reg=>{
+    if(reg.waiting&&navigator.serviceWorker.controller)showUpdateBar(reg.waiting);
+    reg.addEventListener("updatefound",()=>{
+      const w=reg.installing;
+      if(!w)return;
+      w.addEventListener("statechange",()=>{
+        /* controller yoksa bu ilk kurulum; uyarı gösterecek eski sürüm yok. */
+        if(w.state==="installed"&&navigator.serviceWorker.controller)showUpdateBar(w);
+      });
+    });
+    /* Ana ekrandaki uygulama arka plandan öne geldiğinde de sürüm yoklanır. */
+    const check=()=>{if(document.visibilityState==="visible")reg.update().catch(()=>{});};
+    document.addEventListener("visibilitychange",check);
+    window.addEventListener("focus",check);
+    check();
+  }).catch(()=>{});
+  let reloading=false;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(reloading)return;
+    reloading=true;
+    location.reload();
+  });
+}
+
 function init(){
   fillDalga();fillKaliteList();
   $("#orderDate").value=new Date().toISOString().slice(0,10);
@@ -671,6 +724,7 @@ function init(){
   $("#adet").addEventListener("input",updatePreview);
   $("#supplierModal").addEventListener("click",e=>{if(e.target.id==="supplierModal")closeSupplierModal();});
   updatePreview();
+  initUpdates();
 }
 init();
 </script>
