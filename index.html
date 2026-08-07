@@ -165,9 +165,9 @@
       </div>
       <div id="enDirectWrap">
         <label>Levha en (mm)</label>
-        <input id="levhaEn" type="number" inputmode="numeric" placeholder="mm">
+        <input id="levhaEn" type="text" inputmode="decimal" autocomplete="off" placeholder="mm · örn 1250,5">
       </div>
-      <div><label>Levha boy (mm)</label><input id="levhaBoy" type="number" inputmode="numeric" placeholder="mm"></div>
+      <div><label>Levha boy (mm)</label><input id="levhaBoy" type="text" inputmode="decimal" autocomplete="off" placeholder="mm · örn 1600,5"></div>
       <div>
         <label>Sipariş adet <span id="minHint" class="min-hint" onclick="applyMin()"></span></label>
         <input id="adet" type="number" inputmode="numeric" placeholder="oto · min 500 m²">
@@ -177,14 +177,14 @@
     <div id="rilWrap" style="margin-top:12px;display:none">
       <label>Ril ölçüleri (mm) — opsiyonel, ril kırım yerleri <span id="rilSumHint" class="min-hint" onclick="applyRilSum()"></span></label>
       <div class="rils">
-        <div class="cell"><label>1</label><input class="ril" type="number" inputmode="numeric"></div>
-        <div class="cell"><label>2</label><input class="ril" type="number" inputmode="numeric"></div>
-        <div class="cell"><label>3</label><input class="ril" type="number" inputmode="numeric"></div>
-        <div class="cell"><label>4</label><input class="ril" type="number" inputmode="numeric"></div>
-        <div class="cell"><label>5</label><input class="ril" type="number" inputmode="numeric"></div>
-        <div class="cell"><label>6</label><input class="ril" type="number" inputmode="numeric"></div>
-        <div class="cell"><label>7</label><input class="ril" type="number" inputmode="numeric"></div>
-        <div class="cell"><label>8</label><input class="ril" type="number" inputmode="numeric"></div>
+        <div class="cell"><label>1</label><input class="ril" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="cell"><label>2</label><input class="ril" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="cell"><label>3</label><input class="ril" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="cell"><label>4</label><input class="ril" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="cell"><label>5</label><input class="ril" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="cell"><label>6</label><input class="ril" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="cell"><label>7</label><input class="ril" type="text" inputmode="decimal" autocomplete="off"></div>
+        <div class="cell"><label>8</label><input class="ril" type="text" inputmode="decimal" autocomplete="off"></div>
       </div>
     </div>
 
@@ -283,7 +283,7 @@ function loadLines(){
   return raw.filter(l=>l&&typeof l==="object"&&+l.levhaEn>0&&+l.levhaBoy>0&&+l.adet>0)
             .slice(0,MAX_LINES)
             .map(l=>({dalga:l.dalga||"",kalite:l.kalite||"",rilTipi:l.rilTipi||"",
-                      isRilsiz:!!l.isRilsiz,rils:Array.isArray(l.rils)?l.rils.slice(0,8):[],
+                      isRilsiz:!!l.isRilsiz,rils:Array.isArray(l.rils)?l.rils.slice(0,8).map(r=>+r||0):[],
                       levhaEn:+l.levhaEn,levhaBoy:+l.levhaBoy,adet:+l.adet,grup:l.grup||"",
                       m2:+l.m2||(+l.levhaEn*+l.levhaBoy/1e6)*+l.adet}));
 }
@@ -293,6 +293,33 @@ function saveLines(){store.set("gk_lines",lines);}
 const $=s=>document.querySelector(s);
 const fmt=(n,d=2)=>n.toLocaleString("tr-TR",{minimumFractionDigits:d,maximumFractionDigits:d});
 const fmt0=n=>n.toLocaleString("tr-TR",{maximumFractionDigits:0});
+
+/* ---------- küsüratlı ölçü girişi ----------
+   Ölçü alanları type="text" + inputmode="decimal": Türkçe klavyede virgül de,
+   nokta da ondalık ayırıcı olarak kabul edilir ("1250,5" = "1250.5"). */
+const MM_DECIMALS=2;
+const MM_EPS=Math.pow(10,-MM_DECIMALS)/2;   // 0,005 mm — kayan nokta toleransı
+/* Tam sayıysa küsürat gösterilmez, değilse 2 haneye kadar. */
+const fmtMm=n=>n.toLocaleString("tr-TR",{maximumFractionDigits:MM_DECIMALS});
+function parseNum(v){
+  let s=String(v==null?"":v).trim().replace(/\s/g,"");
+  if(!s)return 0;
+  const lastSep=Math.max(s.lastIndexOf(","),s.lastIndexOf("."));
+  if(lastSep>-1){                            // son ayırıcı ondalık, öncekiler binlik
+    s=s.slice(0,lastSep).replace(/[.,]/g,"")+"."+s.slice(lastSep+1);
+  }
+  const n=parseFloat(s);
+  return isFinite(n)?n:0;
+}
+/* Girilen metin sayıya çevrilemiyorsa (harf, işaret vb.) uyaralım. */
+function isBadNum(v){
+  const s=String(v==null?"":v).trim().replace(/\s/g,"");
+  return s!==""&&!/^[+-]?[\d.,]*\d[\d.,]*$/.test(s);
+}
+const roundMm=n=>Math.round(n*Math.pow(10,MM_DECIMALS))/Math.pow(10,MM_DECIMALS);
+const eqMm=(a,b)=>Math.abs(a-b)<MM_EPS;
+/* Sayıyı ölçü kutusuna yazarken yerel ayırıcı (virgül) kullanılır. */
+const toMmInput=n=>String(roundMm(n)).replace(".",",");
 /* Kalite/ril tipi/firma adı serbest metin; innerHTML'e basılmadan önce kaçışlanır. */
 const ESC_MAP={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>ESC_MAP[c]);
@@ -326,20 +353,23 @@ function onRilTipiChange(){
 function currentInput(){
   const rilTipi=getRilTipi();
   const isRilsiz=rilTipi.toUpperCase()==="RİLSİZ";
-  const rils=[...document.querySelectorAll(".ril")].map(i=>parseFloat(i.value)||0);
-  const rilSum=rils.reduce((a,b)=>a+b,0);
-  const levhaEn=parseFloat($("#levhaEn").value)||0;   // her zaman doğrudan girilir
-  const levhaBoy=parseFloat($("#levhaBoy").value)||0;
+  const rilEls=[...document.querySelectorAll(".ril")];
+  const rils=rilEls.map(i=>roundMm(parseNum(i.value)));
+  const rilSum=roundMm(rils.reduce((a,b)=>a+b,0));
+  const levhaEn=roundMm(parseNum($("#levhaEn").value));   // her zaman doğrudan girilir
+  const levhaBoy=roundMm(parseNum($("#levhaBoy").value));
   const adet=parseFloat($("#adet").value)||0;
+  const badNum=[$("#levhaEn"),$("#levhaBoy"),...rilEls].some(i=>isBadNum(i.value));
   const dalga=$("#dalga").value, kalite=getKalite(), grup=$("#kaliteGrup").value;
   const perSheet=levhaEn*levhaBoy/1e6;
   const m2=perSheet*adet;
   const minAdet=perSheet>0?Math.ceil(LIMITS.m2Min/perSheet):0;
-  return {rilTipi,isRilsiz,rils,rilSum,levhaEn,levhaBoy,adet,dalga,kalite,grup,m2,minAdet};
+  return {rilTipi,isRilsiz,rils,rilSum,levhaEn,levhaBoy,adet,dalga,kalite,grup,m2,minAdet,badNum};
 }
 
 function validate(c){
   const e=[];
+  if(c.badNum)e.push("Ölçü alanlarına yalnızca sayı girin (küsürat için virgül veya nokta).");
   if(!c.dalga)e.push("Dalga seçin.");
   if(!c.kalite)e.push("Kalite girin.");
   if(!c.rilTipi)e.push("Ril tipi seçin.");
@@ -349,10 +379,11 @@ function validate(c){
   if(!c.levhaBoy)e.push("Levha boyu girin.");
   else if(c.levhaBoy<LIMITS.boyMin||c.levhaBoy>LIMITS.boyMax)
     e.push(`Levha boyu ${fmt0(LIMITS.boyMin)}–${fmt0(LIMITS.boyMax)} mm arasında olmalı.`);
+  if(c.rils.some(r=>r<0))e.push("Ril ölçüsü negatif olamaz.");
   /* Şablon rilli satırlarda levha enini ril toplamından hesaplar (R=SUM(I:P)),
-     bu yüzden elle girilen en ril toplamıyla aynı olmalı. */
-  if(!c.isRilsiz&&c.rilSum>0&&c.levhaEn&&c.rilSum!==c.levhaEn)
-    e.push(`Ril toplamı ${fmt0(c.rilSum)} mm, levha eni ${fmt0(c.levhaEn)} mm — eşit olmalı.`);
+     bu yüzden elle girilen en ril toplamıyla aynı olmalı (küsüratta 0,005 mm tolerans). */
+  if(!c.isRilsiz&&c.rilSum>0&&c.levhaEn&&!eqMm(c.rilSum,c.levhaEn))
+    e.push(`Ril toplamı ${fmtMm(c.rilSum)} mm, levha eni ${fmtMm(c.levhaEn)} mm — eşit olmalı.`);
   if(!c.adet)e.push("Sipariş adedi girin.");
   else if(c.levhaEn&&c.levhaBoy&&c.m2<LIMITS.m2Min)
     e.push(`Min. ${LIMITS.m2Min} m² gerekli — en az ${fmt0(c.minAdet)} adet (şu an ${fmt(c.m2)} m²).`);
@@ -375,13 +406,13 @@ function applyMin(){
 }
 function applyRilSum(){
   const s=+($("#rilSumHint").dataset.sum||0);
-  if(s){$("#levhaEn").value=s;recalcAdet();}
+  if(s){$("#levhaEn").value=toMmInput(s);recalcAdet();}
 }
 
 function updatePreview(){
   const c=currentInput();
-  $("#pvEn").innerHTML=c.levhaEn?fmt0(c.levhaEn)+'<small> mm</small>':'–<small> mm</small>';
-  $("#pvBoy").innerHTML=c.levhaBoy?fmt0(c.levhaBoy)+'<small> mm</small>':'–<small> mm</small>';
+  $("#pvEn").innerHTML=c.levhaEn?fmtMm(c.levhaEn)+'<small> mm</small>':'–<small> mm</small>';
+  $("#pvBoy").innerHTML=c.levhaBoy?fmtMm(c.levhaBoy)+'<small> mm</small>':'–<small> mm</small>';
   $("#pvMinAdet").innerHTML=c.minAdet?fmt0(c.minAdet):'–';
   $("#pvM2").innerHTML=c.m2?fmt(c.m2):'–';
   $("#pvM2").style.color=(c.m2&&c.m2<LIMITS.m2Min)?'var(--err)':'var(--navy)';
@@ -389,7 +420,7 @@ function updatePreview(){
   if(rs){
     rs.dataset.sum=c.rilSum||0;
     rs.textContent=c.rilSum>0
-      ?`· toplam ${fmt0(c.rilSum)} mm${(!c.isRilsiz&&c.rilSum!==c.levhaEn)?" — eni eşitle":""}`
+      ?`· toplam ${fmtMm(c.rilSum)} mm${(!c.isRilsiz&&!eqMm(c.rilSum,c.levhaEn))?" — eni eşitle":""}`
       :"";
   }
   const msg=$("#lineMsg");
@@ -436,7 +467,7 @@ function renderLines(){
     tM2+=l.m2;tAdet+=l.adet;
     return `<tr>
       <td>${i+1}</td><td>${esc(l.dalga)}</td><td class="name">${esc(l.kalite)}</td><td>${esc(l.rilTipi)}</td>
-      <td class="num">${fmt0(l.levhaEn)}</td><td class="num">${fmt0(l.levhaBoy)}</td>
+      <td class="num">${fmtMm(l.levhaEn)}</td><td class="num">${fmtMm(l.levhaBoy)}</td>
       <td class="num">${fmt0(l.adet)}</td><td class="num">${fmt(l.m2)}</td>
       <td><button class="row-x" onclick="removeLine(${i})" title="Sil">×</button></td>
     </tr>`;
