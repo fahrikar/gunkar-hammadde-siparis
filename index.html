@@ -175,7 +175,7 @@
     </div>
 
     <div id="rilWrap" style="margin-top:12px;display:none">
-      <label>Ril ölçüleri (mm) — opsiyonel, ril kırım yerleri <span id="rilSumHint" class="min-hint"></span></label>
+      <label>Ril ölçüleri (mm) — opsiyonel, ril kırım yerleri <span id="rilSumHint" class="min-hint" onclick="applyRilSum()"></span></label>
       <div class="rils">
         <div class="cell"><label>1</label><input class="ril" type="number" inputmode="numeric"></div>
         <div class="cell"><label>2</label><input class="ril" type="number" inputmode="numeric"></div>
@@ -258,6 +258,8 @@ const KALITE_RAW = [
 const KALITE = KALITE_RAW.map(x=>({dalga:x[0],kalite:x[1]}));
 const DALGALAR=["E","B","C","EB","BC"];
 const LIMITS={enMin:300,enMax:2800,boyMin:650,boyMax:5500,m2Min:500};
+/* Şablonda hazır sipariş satırı: sheet1 satır 3–52. Fazlası Excel'e yazılamaz. */
+const MAX_LINES=50;
 
 /* ---------- kalıcılık ---------- */
 const store={
@@ -271,8 +273,21 @@ let suppliers=store.get("gk_suppliers",[
   {id:2,ad:"KRN",sevk:"ADANA"}
 ]);
 let activeSupplier=store.get("gk_activeSupplier",suppliers[0]?.id||null);
-let lines=[];
+let lines=loadLines();
 let lastAutoMin=0;
+
+/* Satırlar sekme kapanınca kaybolmasın diye localStorage'da tutulur. */
+function loadLines(){
+  const raw=store.get("gk_lines",[]);
+  if(!Array.isArray(raw))return[];
+  return raw.filter(l=>l&&typeof l==="object"&&+l.levhaEn>0&&+l.levhaBoy>0&&+l.adet>0)
+            .slice(0,MAX_LINES)
+            .map(l=>({dalga:l.dalga||"",kalite:l.kalite||"",rilTipi:l.rilTipi||"",
+                      isRilsiz:!!l.isRilsiz,rils:Array.isArray(l.rils)?l.rils.slice(0,8):[],
+                      levhaEn:+l.levhaEn,levhaBoy:+l.levhaBoy,adet:+l.adet,grup:l.grup||"",
+                      m2:+l.m2||(+l.levhaEn*+l.levhaBoy/1e6)*+l.adet}));
+}
+function saveLines(){store.set("gk_lines",lines);}
 
 /* ---------- yardımcılar ---------- */
 const $=s=>document.querySelector(s);
@@ -326,7 +341,15 @@ function validate(c){
   if(!c.kalite)e.push("Kalite girin.");
   if(!c.rilTipi)e.push("Ril tipi seçin.");
   if(!c.levhaEn)e.push("Levha eni girin.");
+  else if(c.levhaEn<LIMITS.enMin||c.levhaEn>LIMITS.enMax)
+    e.push(`Levha eni ${fmt0(LIMITS.enMin)}–${fmt0(LIMITS.enMax)} mm arasında olmalı.`);
   if(!c.levhaBoy)e.push("Levha boyu girin.");
+  else if(c.levhaBoy<LIMITS.boyMin||c.levhaBoy>LIMITS.boyMax)
+    e.push(`Levha boyu ${fmt0(LIMITS.boyMin)}–${fmt0(LIMITS.boyMax)} mm arasında olmalı.`);
+  /* Şablon rilli satırlarda levha enini ril toplamından hesaplar (R=SUM(I:P)),
+     bu yüzden elle girilen en ril toplamıyla aynı olmalı. */
+  if(!c.isRilsiz&&c.rilSum>0&&c.levhaEn&&c.rilSum!==c.levhaEn)
+    e.push(`Ril toplamı ${fmt0(c.rilSum)} mm, levha eni ${fmt0(c.levhaEn)} mm — eşit olmalı.`);
   if(!c.adet)e.push("Sipariş adedi girin.");
   else if(c.levhaEn&&c.levhaBoy&&c.m2<LIMITS.m2Min)
     e.push(`Min. ${LIMITS.m2Min} m² gerekli — en az ${fmt0(c.minAdet)} adet (şu an ${fmt(c.m2)} m²).`);
@@ -347,6 +370,10 @@ function applyMin(){
   const m=+($("#minHint").dataset.min||0);
   if(m){$("#adet").value=m;lastAutoMin=m;updatePreview();}
 }
+function applyRilSum(){
+  const s=+($("#rilSumHint").dataset.sum||0);
+  if(s){$("#levhaEn").value=s;recalcAdet();}
+}
 
 function updatePreview(){
   const c=currentInput();
@@ -355,7 +382,13 @@ function updatePreview(){
   $("#pvMinAdet").innerHTML=c.minAdet?fmt0(c.minAdet):'–';
   $("#pvM2").innerHTML=c.m2?fmt(c.m2):'–';
   $("#pvM2").style.color=(c.m2&&c.m2<LIMITS.m2Min)?'var(--err)':'var(--navy)';
-  const rs=$("#rilSumHint");if(rs)rs.textContent=c.rilSum>0?`· toplam ${fmt0(c.rilSum)} mm`:"";
+  const rs=$("#rilSumHint");
+  if(rs){
+    rs.dataset.sum=c.rilSum||0;
+    rs.textContent=c.rilSum>0
+      ?`· toplam ${fmt0(c.rilSum)} mm${(!c.isRilsiz&&c.rilSum!==c.levhaEn)?" — eni eşitle":""}`
+      :"";
+  }
   const msg=$("#lineMsg");
   const any=c.levhaEn||c.levhaBoy||c.adet||c.kalite;
   if(!any){msg.className="msg";return;}
@@ -369,10 +402,15 @@ function addLine(){
   const c=currentInput();
   const errs=validate(c);
   const msg=$("#lineMsg");
+  if(lines.length>=MAX_LINES){
+    msg.className="msg show err";
+    msg.textContent=`Şablon en fazla ${MAX_LINES} satır alıyor. Bu siparişi indirip yeni bir sipariş açın.`;
+    return;
+  }
   if(errs.length){msg.className="msg show err";msg.innerHTML="Eklenemedi:<br>• "+errs.join("<br>• ");return;}
   lines.push({dalga:c.dalga,kalite:c.kalite,rilTipi:c.rilTipi,isRilsiz:c.isRilsiz,
     rils:c.rils.slice(),levhaEn:c.levhaEn,levhaBoy:c.levhaBoy,adet:c.adet,grup:c.grup,m2:c.m2});
-  renderLines();resetLineForm();
+  saveLines();renderLines();resetLineForm();
   msg.className="msg show ok";msg.textContent="Satır eklendi.";
   setTimeout(()=>{if(msg.textContent==="Satır eklendi.")msg.className="msg";},1800);
 }
@@ -383,8 +421,8 @@ function resetLineForm(){
   lastAutoMin=0;$("#minHint").textContent="";
   updatePreview();
 }
-function removeLine(i){lines.splice(i,1);renderLines();}
-function clearAll(){if(lines.length&&confirm("Tüm satırlar silinsin mi?")){lines=[];renderLines();}}
+function removeLine(i){lines.splice(i,1);saveLines();renderLines();}
+function clearAll(){if(lines.length&&confirm("Tüm satırlar silinsin mi?")){lines=[];saveLines();renderLines();}}
 
 function renderLines(){
   const body=$("#lineBody"),foot=$("#lineFoot"),empty=$("#emptyMsg");
@@ -404,7 +442,10 @@ function renderLines(){
     <td class="num">${fmt0(tAdet)}</td><td class="num">${fmt(tM2)}</td><td></td></tr>`;
   updateBar(tM2);
 }
-function updateBar(m2){$("#barLines").textContent=lines.length+" satır";$("#barM2").textContent=fmt(m2)+" m²";}
+function updateBar(m2){
+  $("#barLines").textContent=lines.length+"/"+MAX_LINES+" satır";
+  $("#barM2").textContent=fmt(m2)+" m²";
+}
 
 /* ---------- tedarikçiler ---------- */
 function renderSupplierChips(){
@@ -482,6 +523,7 @@ function b64ToBytes(b64){
 
 async function exportExcel(){
   if(!lines.length){alert("Önce en az bir satır ekleyin.");return;}
+  if(lines.length>MAX_LINES){alert(`Şablona en fazla ${MAX_LINES} satır yazılabilir; fazlasını silin.`);return;}
   if(typeof JSZip==="undefined"){alert("Bileşen yüklenemedi. İnternet bağlantını kontrol edip sayfayı yenile.");return;}
   const sup=suppliers.find(s=>s.id===activeSupplier);
   const supName=sup?sup.ad:"Tedarikci";
