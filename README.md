@@ -42,6 +42,7 @@ kaybolmaz. **Temizle** ile silinir.
 
 ```
 index.html                  uygulamanın tamamı (HTML + CSS + JS + gömülü şablon)
+sw.js                       service worker — çevrimdışı çalışma + otomatik güncelleme
 jszip.min.js                JSZip 3.10.1 — .xlsx zip'ini açıp yeniden paketler
 jszip-LICENSE.markdown
 .nojekyll                   GitHub Pages
@@ -52,6 +53,31 @@ yayın için repoyu GitHub Pages'e vermek dışında bir şey gerekmiyor.
 
 JSZip repoda tutuluyor (CDN'den çekilmiyor) — böylece dış bir servise bağımlı
 kalmıyor ve sayfa bir kez yüklendikten sonra internet olmadan da Excel üretiyor.
+
+## Güncelleme (ana ekrana eklenen uygulama)
+
+`sw.js` "ağ önce" çalışır: internet varken her açılışta dosyalar sunucudan
+alınır, internet yokken önbellekteki son sürümle çalışılır. Yani telefondaki
+uygulamayı **silip yeniden kurmaya gerek yok** — yeni sürüm `main`'e girip
+GitHub Pages yayını bittikten sonra uygulama bir sonraki açılışta kendini
+günceller.
+
+Uygulama açıkken yeni sürüm inerse üstte sarı bir **"Yeni sürüm hazır ·
+Yenile"** çubuğu çıkar; forma yazılanlar kaybolmasın diye sayfa kendiliğinden
+yenilenmez, yenileme kullanıcının tıklamasıyla olur.
+
+Çalışan sürüm başlıktaki `· s2026-08-07.1` etiketinden okunur — telefondaki
+sürümün güncel olup olmadığı böyle kontrol edilir.
+
+Yeni sürüm yayınlarken **iki yerdeki sürüm numarası birlikte** artırılmalı:
+
+| Dosya | Sabit |
+|---|---|
+| `index.html` | `const APP_VERSION="…"` |
+| `sw.js` | `const VERSION="…"` |
+
+`sw.js` içeriği değişmezse tarayıcı yeni sürüm olduğunu anlamaz ve güncelleme
+çubuğu çıkmaz.
 
 ## Excel şablonu nasıl çalışıyor
 
