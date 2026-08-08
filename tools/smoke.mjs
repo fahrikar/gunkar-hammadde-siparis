@@ -16,7 +16,8 @@ import {chromium} from "playwright-core";
 
 const ROOT=join(dirname(fileURLToPath(import.meta.url)),"..");
 const TYPES={".html":"text/html; charset=utf-8",".js":"text/javascript; charset=utf-8",
-             ".json":"application/json",".md":"text/markdown; charset=utf-8"};
+             ".json":"application/json",".md":"text/markdown; charset=utf-8",
+             ".webmanifest":"application/manifest+json",".png":"image/png",".svg":"image/svg+xml"};
 
 let failed=0;
 function check(name,cond,detail){
@@ -158,14 +159,103 @@ try{
     cells.Q4==="1250.75"&&cells.R4==="1250.75"&&cells.I4==="",
     JSON.stringify([cells.Q4,cells.R4,cells.I4]));
 
-  /* --- 5. service worker: devralıyor ve çevrimdışı çalışıyor --- */
-  await page.waitForFunction(()=>navigator.serviceWorker.controller!==null,null,{timeout:20000});
-  check("service worker sayfayı devraldı",true);
+  /* --- 5. satır düzenleme: yanlış girilen satır silinip yeniden yazılmasın --- */
+  await page.click('#lineBody tr:nth-child(1) .act[title="Düzenle"]');
+  check("düzenleme kipi açıldı",
+    (await page.textContent("#addBtn")).includes("güncelle"),
+    await page.textContent("#addBtn"));
+  check("düzenlenen satırın ölçüleri forma geldi",
+    (await page.inputValue("#levhaEn"))==="1250,75"&&(await page.inputValue("#levhaBoy"))==="1600,5",
+    JSON.stringify([await page.inputValue("#levhaEn"),await page.inputValue("#levhaBoy")]));
+  check("ril kutuları da geri yüklendi",
+    (await page.inputValue("#ril1"))==="150,25",await page.inputValue("#ril1"));
+  await page.fill("#adet","400");
+  await page.click("#addBtn");
+  check("satır güncellendi, yenisi eklenmedi",(await page.$$("#lineBody tr")).length===2);
+  check("yeni adet tabloya yansıdı",
+    (await page.textContent("#lineBody tr:nth-child(1)")).includes("400"),
+    (await page.textContent("#lineBody tr:nth-child(1)")).trim());
+  check("düzenleme kipi kapandı",
+    (await page.textContent("#addBtn"))==="Satırı ekle",await page.textContent("#addBtn"));
+
+  /* --- 6. ril ölçülerini tek seferde yapıştırma --- */
+  await page.selectOption("#rilTipi","NORMAL OFFSET");
+  await page.evaluate(()=>{
+    const el=document.querySelectorAll(".ril")[0];
+    const dt=new DataTransfer();
+    dt.setData("text/plain","300 300 325 325");
+    el.dispatchEvent(new ClipboardEvent("paste",{clipboardData:dt,bubbles:true,cancelable:true}));
+  });
+  check("yapıştırılan ölçüler kutulara dağıldı",
+    (await page.inputValue("#ril4"))==="325",await page.inputValue("#ril4"));
+  check("yapıştırma sonrası toplam hesaplandı",
+    (await page.textContent("#rilSumHint")).includes("1.250"),
+    await page.textContent("#rilSumHint"));
+  await page.click("#cancelBtn").catch(()=>{});
+  await page.evaluate(()=>resetLineForm());
+
+  /* --- 7. silme geri alınabiliyor (telefonda yanlış dokunuş) --- */
+  await page.click('#lineBody tr:nth-child(2) .act.del');
+  check("satır silindi",(await page.$$("#lineBody tr")).length===1);
+  await page.click('#toast button');
+  check("silme geri alındı",(await page.$$("#lineBody tr")).length===2);
+
+  /* --- 8. eksik başlık bilgisiyle Excel üretilmiyor --- */
+  await page.fill("#musteriAdi","");
+  await page.click("#exportBtn");
+  check("müşteri adı boşken uyarı çıkıyor",
+    (await page.textContent("#toast")).includes("Müşteri adı"),
+    (await page.textContent("#toast")).trim());
+  await page.fill("#musteriAdi","GÜNKAR AMBALAJ");
+
+  /* --- 9. ana ekran kurulumu: manifest sunuluyor ve ikonlar erişilebilir --- */
+  const manifest=await page.evaluate(async()=>{
+    const href=document.querySelector('link[rel="manifest"]')?.href;
+    if(!href)return null;
+    const r=await fetch(href);
+    if(!r.ok)return null;
+    const m=await r.json();
+    const icons=await Promise.all((m.icons||[]).map(async i=>(await fetch(new URL(i.src,href))).ok));
+    return {display:m.display,name:m.name,icons};
+  });
+  check("manifest yükleniyor ve standalone",
+    !!manifest&&manifest.display==="standalone",JSON.stringify(manifest&&manifest.display));
+  check("manifest'teki ikonlar sunucudan geliyor",
+    !!manifest&&manifest.icons.length>0&&manifest.icons.every(Boolean),
+    JSON.stringify(manifest&&manifest.icons));
+
+  /* --- 10. service worker: devralıyor ve çevrimdışı çalışıyor --- */
+  /* Sayfa, service worker'dan önce yüklendiyse denetimsiz kalır: clients.claim()
+     yalnız o an açık olan belgeleri devralır, sonraki gezinme sırasında henüz
+     etkin worker yoksa yeni belge yine denetimsiz açılır. Uygulama bunu
+     kendiliğinden yenileyerek düzeltmiyor (form doldurulurken sıçrama olurdu),
+     bir sonraki açılışta düzeliyor — test de aynı yolu izler. */
+  const controlled=async ms=>{
+    try{await page.waitForFunction(()=>navigator.serviceWorker.controller!==null,null,{timeout:ms});return true;}
+    catch{return false;}
+  };
+  let devraldi=await controlled(15000);
+  if(!devraldi){await page.reload();devraldi=await controlled(15000);}
+  check("service worker sayfayı devraldı",devraldi);
   await ctx.setOffline(true);
   await page.reload();
   check("çevrimdışı açılıyor",await page.isVisible("#levhaEn"));
   check("çevrimdışı satırlar duruyor",(await page.$$("#lineBody tr")).length===2);
+  check("çevrimdışı rozeti görünüyor",await page.isVisible("#offlineBadge"));
   await ctx.setOffline(false);
+
+  /* --- 11. sipariş başlığı sayfa yenilenince duruyor --- */
+  await page.fill("#vade","60 gün");
+  await page.fill("#sevkYeri","MERSİN");
+  await page.reload();
+  check("vade yenilemeden sonra duruyor",
+    (await page.inputValue("#vade"))==="60 gün",await page.inputValue("#vade"));
+  check("sevk yeri yenilemeden sonra duruyor",
+    (await page.inputValue("#sevkYeri"))==="MERSİN",await page.inputValue("#sevkYeri"));
+  const today=new Date();
+  const iso=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+  check("teslim tarihi yerel bugüne ayarlı",
+    (await page.inputValue("#orderDate"))===iso,await page.inputValue("#orderDate"));
 
   check("sayfada JS hatası yok",pageErrors.length===0,pageErrors.join(" | "));
 }catch(e){

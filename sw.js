@@ -8,9 +8,12 @@
    Sürüm değiştiğinde APP_VERSION (index.html) ile birlikte güncellenmeli;
    tarayıcı bu dosyadaki farkı görünce yeni sürümü indirir ve sayfa
    "Yeni sürüm hazır" çubuğunu gösterir. */
-const VERSION="2026-08-07.1";
+const VERSION="2026-08-08.1";
 const CACHE="gunkar-"+VERSION;
-const ASSETS=["./","./index.html","./jszip.min.js"];
+/* Ana ekran ikonları ve manifest de önbelleğe alınır: uygulama çevrimdışıyken
+   de kurulabilir ve simgesi görünür kalır. */
+const ASSETS=["./","./index.html","./jszip.min.js","./manifest.webmanifest",
+              "./icon.svg","./icon-192.png","./icon-512.png","./icon-maskable-512.png"];
 
 self.addEventListener("install",e=>{
   /* Ön yükleme başarısız olursa kurulum yine de sürsün; eksikler ilk

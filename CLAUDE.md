@@ -13,15 +13,18 @@ yalnızca kod üzerinde çalışırken bilinmesi gerekenler var.
 |---|---|
 | `index.html` | uygulamanın tamamı — HTML + CSS + JS + base64 gömülü Excel şablonu |
 | `sw.js` | service worker — çevrimdışı çalışma ve otomatik güncelleme |
+| `manifest.webmanifest` | ana ekrana kurulum; `icon*.png` / `icon.svg`'ye bakar |
+| `icon.svg`, `icon-*.png` | üretilmiş dosyalar — elle düzenlemeyin, `npm run ikon` |
 | `jszip.min.js` | JSZip 3.10.1, repoda tutuluyor (CDN yok) |
 | `tools/` | sadece geliştirme (aşağıda) |
 | `.claude/skills/` | `yayinla`, `sablon-guncelle` — tekrar eden akışlar |
 
 ```
-tools/check.mjs             sözdizimi + sürüm tutarlılığı        npm run check
+tools/check.mjs             statik kontroller                    npm run check
 tools/smoke.mjs             tarayıcıda uçtan uca test            npm test
 tools/bump-version.mjs      iki dosyadaki sürümü birlikte artır  npm run bump
 tools/inspect-template.mjs  şablonun satır/kolon eşlemesi        npm run sablon
+tools/make-icons.mjs        simgeleri koddan çizer               npm run ikon
 tools/embed-template.mjs    yeni .xlsx'i index.html'e göm
 tools/lib/xlsx.mjs          jszip.min.js'i node'dan kullanma yardımcısı
 ```
@@ -73,6 +76,24 @@ etmek için sayfa http üzerinden sunulmalı — `npm test` bunu kendi kurduğu
 yerel sunucuyla yapıyor. `file://` ile açıldığında kayıt atlanır, uygulama
 yine çalışır.
 
+`controllerchange` yalnızca **önceden bir denetleyici varken** sayfayı
+yeniler (`hadController`). İlk ziyarette `clients.claim()` de bu olayı
+tetikliyor; koşul kaldırılırsa kullanıcı ilk açılışta sebepsiz bir yenileme
+görür ve o sırada forma yazdıkları silinir. Bunun bedeli: ilk ziyaretteki
+sayfa denetimsiz kalabilir, bir sonraki açılışta denetime girer. Çevrimdışı
+çalışma etkilenmez — dosyalar `install` sırasında zaten önbelleğe alınıyor.
+
+**5. Arayüz satır içi `onclick` ile kurulu.** Bir fonksiyon yeniden
+adlandırıldığında sayfa açılır, düğme sessizce ölür. `npm run check`
+HTML'deki `onclick` adlarıyla script'teki `function` tanımlarını
+karşılaştırıp bunu yakalar.
+
+**6. Renkler yalnız `:root` değişkenlerinde.** Koyu tema
+(`prefers-color-scheme`) sadece bu değişkenleri yeniden tanımlıyor; kural
+içine doğrudan renk yazılırsa karanlık modda okunmaz hâle gelir. JS'ten
+renk atanan tek yer `updatePreview`'daki `pvM2` — orada da `var(--…)`
+kullanılmalı.
+
 ## Yayın
 
 GitHub Pages `main` dalını sunuyor: **`main`'e merge etmek yayına almaktır.**
@@ -95,8 +116,14 @@ okunur.
 
 ## Veri
 
-Sipariş satırları ve tedarikçi listesi `localStorage`'da (`gk_lines`,
-tedarikçi anahtarları). `loadLines` gelen veriyi süzüp sayıya çeviriyor —
-eski kayıtlar yeni alanları içermeyebileceği için bu süzgeç korunmalı.
-Kalite, ril tipi ve firma adı serbest metin; `innerHTML`'e basılmadan önce
-`esc()` ile kaçışlanır.
+Sipariş satırları, sipariş başlığı ve tedarikçi listesi `localStorage`'da
+(`gk_lines`, `gk_header`, `gk_suppliers`, `gk_activeSupplier`). `loadLines`
+gelen veriyi süzüp sayıya çeviriyor — eski kayıtlar yeni alanları
+içermeyebileceği için bu süzgeç korunmalı. Kalite, ril tipi ve firma adı
+serbest metin; `innerHTML`'e basılmadan önce `esc()` ile kaçışlanır.
+
+`store.set` kota dolduğunda `false` döner; `saveLines` bunu bildirimle
+duyurur. Sessizce yutmayın — kullanıcı kaydedildi sanıp sekmeyi kapatır.
+
+`gk_header`'daki teslim tarihi geçmişte kaldıysa `restoreHeader` bugüne
+çeker: eski bir tarihin sessizce siparişe geçmesi boş kalmasından kötü.

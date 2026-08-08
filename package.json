@@ -8,7 +8,8 @@
     "check": "node tools/check.mjs",
     "test": "node tools/smoke.mjs",
     "bump": "node tools/bump-version.mjs",
-    "sablon": "node tools/inspect-template.mjs"
+    "sablon": "node tools/inspect-template.mjs",
+    "ikon": "node tools/make-icons.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.56.0"

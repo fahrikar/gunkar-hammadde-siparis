@@ -52,5 +52,42 @@ for(const a of assets){
   catch{bad(`sw.js ASSETS içindeki ${a} repoda yok — kurulum sırasında önbellek eksik kalır.`);}
 }
 
+/* 4 — satır içi onclick'ler gerçek bir fonksiyona bağlı mı?
+   Arayüz baştan sona onclick="fn()" ile kurulu. Bir fonksiyon yeniden
+   adlandırıldığında tarayıcı sessiz kalmaz ama hatayı ancak o düğmeye basan
+   görür; burada erken yakalanır. */
+const script=blocks.join("\n");
+const defined=new Set([...script.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]));
+const called=new Set([...html.matchAll(/\bon\w+="\s*([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]));
+const missing=[...called].filter(n=>!defined.has(n));
+if(missing.length)bad(`HTML'deki onclick şu fonksiyonlara bakıyor ama tanımlı değiller: ${missing.join(", ")}`);
+else ok(`satır içi olay bağlantıları (${called.size} fonksiyon) tanımlı`);
+
+/* 5 — ana ekran kurulumu: manifest ve ikonlar tutarlı mı?
+   Manifest bozulursa uygulama ana ekrana "tarayıcı kısayolu" olarak eklenir;
+   hiçbir hata çıkmaz, sadece tam ekran açılmaz. */
+if(!/<link[^>]+rel="manifest"/.test(html))bad("index.html içinde <link rel=\"manifest\"> yok.");
+else ok("index.html manifest'e bağlı");
+let manifest=null;
+try{manifest=JSON.parse(readFileSync(join(ROOT,"manifest.webmanifest"),"utf8"));ok("manifest.webmanifest okunabiliyor");}
+catch(e){bad(`manifest.webmanifest okunamadı: ${e.message}`);}
+if(manifest){
+  for(const key of ["name","start_url","display","icons"])
+    if(!manifest[key])bad(`manifest.webmanifest içinde ${key} yok.`);
+  for(const ic of manifest.icons||[]){
+    try{readFileSync(join(ROOT,ic.src));}
+    catch{bad(`manifest'teki ikon repoda yok: ${ic.src}`);}
+  }
+  if(!(manifest.icons||[]).some(i=>String(i.purpose||"").includes("maskable")))
+    bad("manifest'te maskable ikon yok — Android'de simge beyaz kutu içinde görünür.");
+  ok("manifest ikonları yerinde");
+}
+const appleIcon=(html.match(/rel="apple-touch-icon"[^>]*href="([^"]+)"/)||[])[1];
+if(!appleIcon)bad("apple-touch-icon yok — iPhone ana ekranında simge boş çıkar.");
+else{
+  try{readFileSync(join(ROOT,appleIcon));ok(`apple-touch-icon: ${appleIcon}`);}
+  catch{bad(`apple-touch-icon dosyası repoda yok: ${appleIcon}`);}
+}
+
 console.log(fails.length?`\n${fails.length} kontrol başarısız.`:"\nTüm kontroller geçti.");
 process.exit(fails.length?1:0);

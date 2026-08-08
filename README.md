@@ -8,14 +8,37 @@ Sunucu yok, hesap yok, veri dışarı çıkmıyor — her şey tarayıcıda çal
 
 ## Kullanım
 
-1. Üstteki **Tedarikçiler** butonundan firmayı seç (veya yeni ekle).
-2. Sipariş bilgilerini (tarih, müşteri, sevk yeri, vade) doldur.
+1. Üstteki **Tedarikçiler** butonundan firmayı seç (veya yeni ekle/düzenle).
+2. Sipariş bilgilerini (teslim tarihi, müşteri, sevk yeri, vade) doldur.
+   Bunlar tarayıcıda saklanır, her seferinde yeniden yazılmaz.
 3. Her ürün için dalga / kalite / ril tipi / levha ölçüsü / adet girip
-   **Satırı ekle**'ye bas.
+   **Satırı ekle**'ye bas (klavyedeki Enter de ekler).
 4. Alt bardaki **Excel indir / paylaş** ile dosyayı üret. Telefonda paylaşım
    menüsü açılır (WhatsApp, mail); masaüstünde dosya iner.
 
 Dosya adı: `GUNKAR_SIPARIS_<firma>_<tarih>.xlsx`
+
+### Satırlarla çalışmak
+
+| Ne | Nasıl |
+|---|---|
+| Yanlış girilen satırı düzeltmek | satırdaki **Düzenle** — satır forma döner, değiştirip **güncelle** |
+| Benzer bir satır girmek | **Kopyala** — satır forma gelir, ölçüyü değiştirip ekle |
+| Silmek | **Sil** — onay sorulmaz, çıkan bildirimden **Geri al**'a basılabilir |
+| Sekiz ril ölçüsünü hızlı girmek | “300 300 325 325” gibi bir metni ilk ril kutusuna yapıştır |
+
+**Temizle** de geri alınabilir. Aynı satır ikinci kez eklenirse uyarı çıkar
+(engellenmez, bilinçli tekrar olabilir).
+
+### Ana ekrana ekleme
+
+Uygulama telefona kurulabilir (PWA): tarayıcı menüsünden **Ana ekrana ekle**
+denince tarayıcı sekmesi değil, kendi simgesiyle tam ekran açılan bir uygulama
+olarak yerleşir. Simgeler `tools/make-icons.mjs` ile koddan üretiliyor
+(`npm run ikon`), `manifest.webmanifest` bunlara işaret ediyor.
+
+Arayüz telefonun temasına uyar: karanlık modda karanlık görünür. Çevrimdışıyken
+başlıkta **çevrimdışı** rozeti çıkar — uygulama çalışmaya devam eder.
 
 ## Kurallar
 
@@ -26,8 +49,13 @@ Uygulama satırı eklemeden önce şunları zorunlu tutar:
 | Levha eni | 300 – 2.800 mm | şablonun kendi kontrolü |
 | Levha boyu | 650 – 5.500 mm | şablonun kendi kontrolü |
 | Minimum sipariş | 500 m² | üretim alt sınırı |
+| Sipariş adedi | tam sayı | levha adedi kesirli olamaz |
 | Ril toplamı | levha enine eşit olmalı | şablon eni `SUM(I:P)` ile hesaplıyor |
 | Satır sayısı | en fazla 50 | şablonda hazır satır: 3–52 |
+
+Excel üretilmeden önce de kontrol edilir: tedarikçi seçilmiş, müşteri adı ve
+sevk yeri dolu, düzenlenmekte olan bir satır açık değil. Teslim tarihi boş
+bırakılmışsa bugüne çekilir — `W` kolonu boş giden sipariş tedarikçide takılır.
 
 RİLSİZ satırlarda ril ölçüsü aranmaz, en `Q` kolonuna da yazılır.
 
@@ -43,6 +71,8 @@ kaybolmaz. **Temizle** ile silinir.
 ```
 index.html                  uygulamanın tamamı (HTML + CSS + JS + gömülü şablon)
 sw.js                       service worker — çevrimdışı çalışma + otomatik güncelleme
+manifest.webmanifest        ana ekrana kurulum (PWA)
+icon.svg, icon-*.png        uygulama simgeleri — tools/make-icons.mjs üretiyor
 jszip.min.js                JSZip 3.10.1 — .xlsx zip'ini açıp yeniden paketler
 jszip-LICENSE.markdown
 tools/                      geliştirme kontrolleri (yayına etkisi yok)
@@ -54,11 +84,12 @@ CLAUDE.md                   kod üzerinde çalışırken bilinmesi gerekenler
 
 ```bash
 npm install      # sadece test aracı (playwright-core); uygulama bağımlılıksız
-npm run check    # sözdizimi + sürüm tutarlılığı, saniyeler sürer
+npm run check    # sözdizimi, sürüm tutarlılığı, onclick bağlantıları, manifest
 npm test         # gerçek tarayıcıda uçtan uca: ölçü girişi, Excel hücreleri,
-                 # çevrimdışı çalışma
+                 # satır düzenleme/geri alma, manifest, çevrimdışı çalışma
 npm run bump     # yayın öncesi iki dosyadaki sürümü birlikte artırır
 npm run sablon   # gömülü şablonun satır/kolon eşlemesini raporlar
+npm run ikon     # simgeleri yeniden üretir (renk/biçim değişirse)
 ```
 
 `npm test` Excel çıktısındaki hücreleri tek tek okur. Bunun sebebi
