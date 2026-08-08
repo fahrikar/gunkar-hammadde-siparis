@@ -89,12 +89,17 @@ python3 -c "
 import json,sys
 d=json.load(open(sys.argv[1]))
 r=d['workflow_runs'][0]
-print(r['name'],r['head_sha'][:7],r['status'],r['conclusion'])
+print(r.get('name'),r.get('head_sha','')[:7],r.get('status'),r.get('conclusion','(henüz yok)'))
 " <dosya-yolu>
 ```
 
-`status` hâlâ `in_progress` ise kısa bir aralık bekleyip tekrar bak.
-`conclusion` `success` olana kadar yayın bitmiş sayılmaz.
+`conclusion` alanı çalışma bitene kadar **yanıtta hiç bulunmuyor**, o yüzden
+`.get()` ile oku — `r['conclusion']` `queued` durumundayken KeyError verir.
+
+`status` `queued` veya `in_progress` ise kısa bir aralık bekleyip tekrar
+bak; `head_sha`'nın az önce push'ladığın merge commit'i olduğunu da doğrula,
+yoksa bir önceki yayının sonucuna bakıyor olabilirsin. `conclusion`
+`success` olana kadar yayın bitmiş sayılmaz.
 
 Yayındaki sayfayı `curl` ile doğrulamayı deneyebilirsin ama bu ortamda
 `github.io` çıkışı proxy tarafından engellenebiliyor; engellenirse Actions
