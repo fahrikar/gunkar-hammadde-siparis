@@ -1,0 +1,16 @@
+{
+  "name": "gunkar-hammadde-siparis",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Günkar hammadde sipariş formu — geliştirme araçları (uygulamanın kendisi bağımlılıksızdır)",
+  "type": "module",
+  "scripts": {
+    "check": "node tools/check.mjs",
+    "test": "node tools/smoke.mjs",
+    "bump": "node tools/bump-version.mjs",
+    "sablon": "node tools/inspect-template.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.56.0"
+  }
+}
