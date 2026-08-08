@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "check": "node tools/check.mjs",
-    "test": "node tools/smoke.mjs"
+    "test": "node tools/smoke.mjs",
+    "bump": "node tools/bump-version.mjs",
+    "sablon": "node tools/inspect-template.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.56.0"

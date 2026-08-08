@@ -14,7 +14,17 @@ yalnızca kod üzerinde çalışırken bilinmesi gerekenler var.
 | `index.html` | uygulamanın tamamı — HTML + CSS + JS + base64 gömülü Excel şablonu |
 | `sw.js` | service worker — çevrimdışı çalışma ve otomatik güncelleme |
 | `jszip.min.js` | JSZip 3.10.1, repoda tutuluyor (CDN yok) |
-| `tools/` | sadece geliştirme: `check.mjs`, `smoke.mjs` |
+| `tools/` | sadece geliştirme (aşağıda) |
+| `.claude/skills/` | `yayinla`, `sablon-guncelle` — tekrar eden akışlar |
+
+```
+tools/check.mjs             sözdizimi + sürüm tutarlılığı        npm run check
+tools/smoke.mjs             tarayıcıda uçtan uca test            npm test
+tools/bump-version.mjs      iki dosyadaki sürümü birlikte artır  npm run bump
+tools/inspect-template.mjs  şablonun satır/kolon eşlemesi        npm run sablon
+tools/embed-template.mjs    yeni .xlsx'i index.html'e göm
+tools/lib/xlsx.mjs          jszip.min.js'i node'dan kullanma yardımcısı
+```
 
 Build adımı yok, framework yok, transpile yok. **Uygulamanın kendisi sıfır
 bağımlılıklı kalmalı** — `package.json`'daki tek bağımlılık testler içindir,
@@ -66,13 +76,15 @@ yine çalışır.
 ## Yayın
 
 GitHub Pages `main` dalını sunuyor: **`main`'e merge etmek yayına almaktır.**
-Yayın öncesi:
+Akışın tamamı `yayinla` skill'inde; özeti:
 
-1. `APP_VERSION` ve `sw.js`'teki `VERSION` birlikte artırılır.
+1. `npm run bump` — `APP_VERSION` ve `sw.js`'teki `VERSION` birlikte artar.
 2. `npm run check && npm test` geçer.
 3. `main`'e merge edilip push edilir.
 4. GitHub Actions'taki `pages build and deployment` çalışmasının bitmesi
    beklenir (~1-2 dk).
+
+Tedarikçi yeni şablon gönderdiğinde `sablon-guncelle` skill'i var.
 
 Kullanıcı tarafında güncelleme otomatik: `sw.js` "ağ önce" çalıştığı için
 uygulama bir sonraki açılışta yeni sürümü alır, silinip yeniden kurulması

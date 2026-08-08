@@ -53,10 +53,12 @@ CLAUDE.md                   kod üzerinde çalışırken bilinmesi gerekenler
 ## Kontroller
 
 ```bash
-npm install     # sadece test aracı (playwright-core); uygulama bağımlılıksız
-npm run check   # sözdizimi + sürüm tutarlılığı, saniyeler sürer
-npm test        # gerçek tarayıcıda uçtan uca: ölçü girişi, Excel hücreleri,
-                # çevrimdışı çalışma
+npm install      # sadece test aracı (playwright-core); uygulama bağımlılıksız
+npm run check    # sözdizimi + sürüm tutarlılığı, saniyeler sürer
+npm test         # gerçek tarayıcıda uçtan uca: ölçü girişi, Excel hücreleri,
+                 # çevrimdışı çalışma
+npm run bump     # yayın öncesi iki dosyadaki sürümü birlikte artırır
+npm run sablon   # gömülü şablonun satır/kolon eşlemesini raporlar
 ```
 
 `npm test` Excel çıktısındaki hücreleri tek tek okur. Bunun sebebi
